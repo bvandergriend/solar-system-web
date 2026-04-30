@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1110">
+  <title>Solar System — Live View</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <canvas id="main" width="800" height="800"></canvas>
+    <canvas id="em"   width="300" height="800"></canvas>
+
+    <div id="controls">
+      <div id="time-text"></div>
+      <div id="offset-text"></div>
+
+      <div class="row" style="top:44px">
+        <span class="label">Days</span>
+        <span class="tick">-5 yr</span>
+        <input type="range" id="days"  min="-1825" max="1825" step="1"    value="0">
+        <span class="tick">+5 yr</span>
+        <span class="value" id="days-val">+0 d</span>
+      </div>
+
+      <div class="row" style="top:80px">
+        <span class="label">Hours</span>
+        <span class="tick" style="left:62px">-24h</span>
+        <input type="range" id="hours" min="-24"   max="24"   step="0.25" value="0"
+               style="width:560px">
+        <span class="tick" style="left:660px">+24h</span>
+        <span class="value" id="hours-val" style="left:686px">+0.00 h</span>
+
+        <button id="reset-time" class="btn"          style="left:775px">Reset Time</button>
+        <button id="reset-view" class="btn"          style="left:885px">Reset View</button>
+        <button id="fast"       class="btn toggle"   style="left:1000px">Fast 100×</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

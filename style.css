@@ -1,0 +1,148 @@
+/* Solar System web viewer — dark space theme matching the Python version. */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: #000008;
+  color: #ffffff;
+  font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+}
+
+.layout {
+  width: 1104px;
+  margin: 0 auto;
+  background: #000008;
+}
+
+#main, #em { display: block; vertical-align: top; }
+#main {
+  background: #000008;
+  cursor: grab;
+  border: 1px solid #000008;
+  float: left;
+}
+#main:active { cursor: grabbing; }
+#em {
+  background: #010118;
+  border: 1px solid #1a1a44;
+  float: right;
+}
+
+#controls {
+  clear: both;
+  position: relative;
+  width: 1104px;
+  height: 130px;
+  background: #202c44;
+  border: 1px solid #0a1226;
+  color: #d6e0f5;
+}
+
+#time-text {
+  position: absolute;
+  left: 12px; top: 8px;
+  font-family: "Courier New", monospace;
+  font-size: 13px;
+  font-weight: bold;
+  color: #ffffff;
+}
+#offset-text {
+  position: absolute;
+  left: 12px; top: 30px;
+  font-family: "Courier New", monospace;
+  font-size: 11px;
+  color: #a8b8d8;
+}
+
+.row { position: absolute; left: 0; right: 0; height: 30px; }
+
+.row .label {
+  position: absolute;
+  left: 12px;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  color: #d6e0f5;
+  line-height: 30px;
+}
+
+.row .tick {
+  position: absolute;
+  left: 58px;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  color: #7d8eb0;
+  line-height: 30px;
+}
+
+.row .value {
+  position: absolute;
+  left: 1108px;
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  font-weight: bold;
+  color: #ffd770;
+  line-height: 30px;
+  width: 80px;
+}
+
+/* Range sliders — restyled so the trough strongly contrasts the panel */
+input[type=range] {
+  position: absolute;
+  left: 95px;
+  width: 980px;
+  height: 14px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #5b78b5;
+  border: 1px solid #3b568f;
+  border-radius: 7px;
+  outline: none;
+  cursor: pointer;
+  margin-top: 8px;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: #ecf2ff;
+  border: 2px solid #2d4a8a;
+  cursor: grab;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+input[type=range]::-moz-range-thumb {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: #ecf2ff;
+  border: 2px solid #2d4a8a;
+  cursor: grab;
+}
+
+/* Buttons — high contrast on every platform */
+.btn {
+  position: absolute;
+  top: 0;
+  background: #3565c0;
+  color: #ffffff;
+  border: 2px solid;
+  border-color: #6b8de0 #1a3a80 #1a3a80 #6b8de0;
+  border-radius: 4px;
+  padding: 7px 14px;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+}
+.btn:hover    { background: #5586d8; }
+.btn:active   {
+  background: #2548a0;
+  border-color: #1a3a80 #6b8de0 #6b8de0 #1a3a80;
+}
+.btn.toggle.on            { background: #e07a30; border-color: #f5a060 #a04a10 #a04a10 #f5a060; }
+.btn.toggle.on:hover      { background: #f29850; }
+.btn.toggle.on:active     {
+  background: #b85a18;
+  border-color: #a04a10 #f5a060 #f5a060 #a04a10;
+}
