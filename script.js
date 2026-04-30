@@ -107,29 +107,54 @@ function dragMove(x, y) {
 }
 function dragEnd() { state.drag = null; }
 
-mainCv.addEventListener("mousedown", e => dragStart(e.offsetX, e.offsetY));
-window.addEventListener("mousemove",  e => {
-  if (!state.drag) return;
+// Use clientX/Y minus the canvas rect, NOT offsetX (which behaves
+// differently under transform: scale across browsers). Drag deltas
+// stay in CSS pixels — same physical mouse movement → same rotation
+// amount, regardless of the layout scale factor.
+function canvasPos(e, touch) {
+  const src = touch || e;
   const r = mainCv.getBoundingClientRect();
-  dragMove(e.clientX - r.left, e.clientY - r.top);
+  return { x: src.clientX - r.left, y: src.clientY - r.top };
+}
+
+mainCv.addEventListener("mousedown", e => {
+  const p = canvasPos(e); dragStart(p.x, p.y);
 });
-window.addEventListener("mouseup",   dragEnd);
+window.addEventListener("mousemove", e => {
+  if (!state.drag) return;
+  const p = canvasPos(e); dragMove(p.x, p.y);
+});
+window.addEventListener("mouseup", dragEnd);
 
 mainCv.addEventListener("touchstart", e => {
   if (e.touches.length === 1) {
-    const r = mainCv.getBoundingClientRect();
-    dragStart(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+    const p = canvasPos(e, e.touches[0]); dragStart(p.x, p.y);
     e.preventDefault();
   }
 }, { passive: false });
 mainCv.addEventListener("touchmove", e => {
   if (e.touches.length === 1 && state.drag) {
-    const r = mainCv.getBoundingClientRect();
-    dragMove(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+    const p = canvasPos(e, e.touches[0]); dragMove(p.x, p.y);
     e.preventDefault();
   }
 }, { passive: false });
 mainCv.addEventListener("touchend", dragEnd);
+
+// ─── Responsive scaling ──────────────────────────────────────────────────
+// The layout is fixed at 1104x934 logical pixels. Compute the largest
+// uniform CSS scale that fits the viewport and apply it as a transform
+// to .layout. Run on load and on every resize.
+const LAYOUT_W = 1104;
+const LAYOUT_H = 934;
+const layoutEl = document.querySelector(".layout");
+
+function fitLayout() {
+  const scale = Math.min(window.innerWidth / LAYOUT_W,
+                         window.innerHeight / LAYOUT_H);
+  layoutEl.style.transform = `scale(${scale})`;
+}
+window.addEventListener("resize", fitLayout);
+fitLayout();
 
 // ─── Time helpers (mirror Python _effective_now / _days) ────────────────
 

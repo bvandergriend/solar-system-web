@@ -3,20 +3,30 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
+  width: 100%;
+  height: 100%;
   background: #000008;
   color: #ffffff;
   font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
 }
-/* Scroll the page horizontally if the viewport is narrower than the
-   fixed-width layout, vertically if it's shorter. Critical: without
-   this the control panel can fall below the fold and become
-   unreachable. */
-body { overflow: auto; }
+
+/* Centre the fixed-size layout in the viewport. JS sets a CSS scale
+   transform that shrinks it uniformly until it fits, so the entire
+   layout — canvases AND control panel — is always visible regardless
+   of window size. */
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .layout {
   width: 1104px;
-  margin: 0 auto;
+  height: 934px;
   background: #000008;
+  flex-shrink: 0;
+  transform-origin: center center;
 }
 
 #main, #em { display: block; vertical-align: top; }
