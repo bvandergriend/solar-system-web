@@ -6,8 +6,12 @@ html, body {
   background: #000008;
   color: #ffffff;
   font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
-  overflow: hidden;
 }
+/* Scroll the page horizontally if the viewport is narrower than the
+   fixed-width layout, vertically if it's shorter. Critical: without
+   this the control panel can fall below the fold and become
+   unreachable. */
+body { overflow: auto; }
 
 .layout {
   width: 1104px;
