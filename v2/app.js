@@ -309,11 +309,14 @@ const bodyTextures = {};   // id → HTMLImageElement (raw equirectangular)
 const bodySprites  = {};   // id → off-screen <canvas> (rendered sphere)
 
 function loadTextures() {
+  state.texTotal = Object.keys(TEXTURE_FILES).length;
+  state.texLoaded = 0;
+  state.texFailed = 0;
   return Promise.all(Object.entries(TEXTURE_FILES).map(([id, src]) =>
     new Promise(resolve => {
       const img = new Image();
-      img.onload  = () => { bodyTextures[id] = img; resolve(); };
-      img.onerror = () => resolve();   // missing texture → fallback to colour
+      img.onload  = () => { bodyTextures[id] = img; state.texLoaded++; resolve(); };
+      img.onerror = () => { state.texFailed++; resolve(); };
       img.src = src;
     })
   ));
@@ -321,10 +324,13 @@ function loadTextures() {
 
 // Render an equirectangular texture onto a sphere, viewed from +z, with
 // Lambertian shading. Returns an off-screen canvas with a transparent
-// background outside the disc.
-function renderSphereSprite(texImg, radius) {
-  const OS = 3;                          // oversample for crispness
-  const sz = Math.max(8, Math.floor(radius * 2 * OS));
+// background outside the disc. We render at a generous fixed size so
+// that when the user zooms in and the planet's display radius grows,
+// the sprite still looks crisp without re-rendering.
+const SPRITE_SIZE = 256;
+
+function renderSphereSprite(texImg) {
+  const sz = SPRITE_SIZE;
   const cv = document.createElement("canvas");
   cv.width = sz; cv.height = sz;
   const c2 = cv.getContext("2d");
@@ -384,9 +390,8 @@ function renderSphereSprite(texImg, radius) {
 
 // Render a sun sprite: equirectangular map at full brightness, no
 // Lambertian shading (the Sun is self-luminous).
-function renderSunSprite(texImg, radius) {
-  const OS = 3;
-  const sz = Math.max(8, Math.floor(radius * 2 * OS));
+function renderSunSprite(texImg) {
+  const sz = SPRITE_SIZE;
   const cv = document.createElement("canvas");
   cv.width = sz; cv.height = sz;
   const c2 = cv.getContext("2d");
@@ -428,44 +433,55 @@ function renderSunSprite(texImg, radius) {
 }
 
 function buildAllSprites() {
-  // Planets / dwarfs / comet
   for (const b of ALL_BODIES) {
     const tex = bodyTextures[b.id];
-    if (tex) bodySprites[b.id] = renderSphereSprite(tex, b.radius);
+    if (tex) bodySprites[b.id] = renderSphereSprite(tex);
   }
-  // Earth's Moon (only moon we have a real texture for)
-  if (bodyTextures.Moon && MOONS.Earth) {
-    const moon = MOONS.Earth.find(m => m.id === "Moon");
-    if (moon) bodySprites.Moon = renderSphereSprite(bodyTextures.Moon, moon.radius);
-  }
-  // Sun — special render (no Lambertian)
-  if (bodyTextures.Sun) bodySprites.Sun = renderSunSprite(bodyTextures.Sun, 12);
+  if (bodyTextures.Moon) bodySprites.Moon = renderSphereSprite(bodyTextures.Moon);
+  if (bodyTextures.Sun)  bodySprites.Sun  = renderSunSprite(bodyTextures.Sun);
+  state.texturesReady = true;
+}
+
+// True angular display radius for a body — when you zoom in, the
+// planet's real size (km → AU → px) takes over from its minimum
+// "always visible" pixel radius. This is what makes the textures
+// readable: at default zoom you see tiny coloured discs, but as you
+// zoom in or track a body it grows and the surface comes into view.
+function displayRadius(body) {
+  const km = (body.facts && body.facts.diameter) || 0;
+  if (!km) return body.radius;
+  const realPx = (km / 2) / AU_KM * state.zoom;
+  return Math.max(body.radius, realPx);
 }
 
 // ── The Sun ────────────────────────────────────────────────────────────
+const SUN_DIAMETER_KM = 1391000;
 function drawSun() {
   const s = project({ x: 0, y: 0, z: 0 });
-  if (s.sx < -100 || s.sx > W + 100 || s.sy < -100 || s.sy > H + 100) return;
-  const grad = ctx.createRadialGradient(s.sx, s.sy, 0, s.sx, s.sy, 60);
+  if (s.sx < -200 || s.sx > W + 200 || s.sy < -200 || s.sy > H + 200) return;
+
+  // Real-size disc scaled with zoom; never smaller than 10 px.
+  const realPx = (SUN_DIAMETER_KM / 2) / AU_KM * state.zoom;
+  const r = Math.max(10, realPx);
+  const halo = r * 5;
+
+  const grad = ctx.createRadialGradient(s.sx, s.sy, r * 0.4, s.sx, s.sy, halo);
   grad.addColorStop(0,    "rgba(255, 240, 130, 1)");
-  grad.addColorStop(0.18, "rgba(255, 200,  60, 0.7)");
-  grad.addColorStop(0.45, "rgba(255, 130,  30, 0.25)");
+  grad.addColorStop(0.18, "rgba(255, 200,  60, 0.55)");
+  grad.addColorStop(0.45, "rgba(255, 130,  30, 0.18)");
   grad.addColorStop(1,    "rgba(255, 100,  20, 0)");
   ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.arc(s.sx, s.sy, 60, 0, TAU);
+  ctx.arc(s.sx, s.sy, halo, 0, TAU);
   ctx.fill();
 
-  // Photosphere — if the texture is loaded, blit the rendered sun
-  // sprite (with subtle limb darkening); otherwise fall back to a flat
-  // disc. The corona above is what dominates visually anyway.
   const sprite = bodySprites.Sun;
   if (sprite) {
-    ctx.drawImage(sprite, s.sx - 12, s.sy - 12, 24, 24);
+    ctx.drawImage(sprite, s.sx - r, s.sy - r, r * 2, r * 2);
   } else {
     ctx.fillStyle = "#ffeebb";
     ctx.beginPath();
-    ctx.arc(s.sx, s.sy, 8, 0, TAU);
+    ctx.arc(s.sx, s.sy, r, 0, TAU);
     ctx.fill();
   }
 
@@ -473,7 +489,7 @@ function drawSun() {
     ctx.fillStyle = "#ffeebb";
     ctx.font = "10px 'Courier New', monospace";
     ctx.textAlign = "center";
-    ctx.fillText("Sun", s.sx, s.sy + 22);
+    ctx.fillText("Sun", s.sx, s.sy + r + 14);
   }
 }
 
@@ -507,17 +523,16 @@ function drawTrail(id, color) {
 // ── Bodies (planets, dwarfs, comets) ───────────────────────────────────
 function drawBody(body, pos) {
   const s = project(pos);
-  if (s.sx < -50 || s.sx > W + 50 || s.sy < -50 || s.sy > H + 50) return null;
+  const r = displayRadius(body);
+  if (s.sx < -r-50 || s.sx > W + r+50 || s.sy < -r-50 || s.sy > H + r+50) return null;
 
   // Saturn rings — a tilted ellipse around the body
   if (body.id === "Saturn") {
     const tilt = Math.cos(state.tilt);
     ctx.strokeStyle = "#b8a060";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(2, r * 0.12);
     ctx.beginPath();
-    ctx.ellipse(s.sx, s.sy,
-                body.radius * 2.4, Math.max(1, body.radius * 2.4 * tilt),
-                0, 0, TAU);
+    ctx.ellipse(s.sx, s.sy, r * 2.4, Math.max(1, r * 2.4 * tilt), 0, 0, TAU);
     ctx.stroke();
   }
 
@@ -527,25 +542,23 @@ function drawBody(body, pos) {
   }
 
   // Subtle glow halo (colour-tinted) around every body, drawn first.
-  const grad = ctx.createRadialGradient(s.sx, s.sy, body.radius * 0.9,
-                                        s.sx, s.sy, body.radius * 2);
+  const grad = ctx.createRadialGradient(s.sx, s.sy, r * 0.9, s.sx, s.sy, r * 2);
   grad.addColorStop(0, withAlpha(body.color, 0.35));
   grad.addColorStop(1, withAlpha(body.color, 0));
   ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.arc(s.sx, s.sy, body.radius * 2, 0, TAU);
+  ctx.arc(s.sx, s.sy, r * 2, 0, TAU);
   ctx.fill();
 
   // Body itself: textured sphere sprite if the image is loaded,
   // otherwise the original flat-coloured disc as a fallback.
   const sprite = bodySprites[body.id];
   if (sprite) {
-    ctx.drawImage(sprite, s.sx - body.radius, s.sy - body.radius,
-                          body.radius * 2,    body.radius * 2);
+    ctx.drawImage(sprite, s.sx - r, s.sy - r, r * 2, r * 2);
   } else {
     ctx.fillStyle = body.color;
     ctx.beginPath();
-    ctx.arc(s.sx, s.sy, body.radius, 0, TAU);
+    ctx.arc(s.sx, s.sy, r, 0, TAU);
     ctx.fill();
   }
 
@@ -553,7 +566,7 @@ function drawBody(body, pos) {
     ctx.strokeStyle = state.tracking === body.id ? "#ff9a40" : "#79c0ff";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(s.sx, s.sy, body.radius + 6, 0, TAU);
+    ctx.arc(s.sx, s.sy, r + 6, 0, TAU);
     ctx.stroke();
   }
 
@@ -561,7 +574,7 @@ function drawBody(body, pos) {
     ctx.fillStyle = state.hovered === body.id ? "#ffffff" : "#aab8d6";
     ctx.font = state.hovered === body.id ? "bold 11px Arial" : "10px Arial";
     ctx.textAlign = "center";
-    ctx.fillText(body.id, s.sx, s.sy + body.radius + 14);
+    ctx.fillText(body.id, s.sx, s.sy + r + 14);
   }
 
   return s;
@@ -624,14 +637,16 @@ function drawMoons(parentBody, parentPos, days) {
       ctx.stroke();
     }
 
+    const km = (m.facts && m.facts.diameter) || 0;
+    const realR = km ? (km / 2) / AU_KM * state.zoom : 0;
+    const mr = Math.max(m.radius, realR);
     const moonSprite = bodySprites[m.id];
     if (moonSprite) {
-      ctx.drawImage(moonSprite, sp.sx - m.radius, sp.sy - m.radius,
-                                m.radius * 2,     m.radius * 2);
+      ctx.drawImage(moonSprite, sp.sx - mr, sp.sy - mr, mr * 2, mr * 2);
     } else {
       ctx.fillStyle = m.color;
       ctx.beginPath();
-      ctx.arc(sp.sx, sp.sy, m.radius, 0, TAU);
+      ctx.arc(sp.sx, sp.sy, mr, 0, TAU);
       ctx.fill();
     }
 
@@ -711,7 +726,13 @@ function updateHUD() {
   hudMeta.textContent =
     state.tracking ? `tracking ${state.tracking}  ·  ${speedStr}`
                    : `time speed: ${speedStr}`;
-  hudZoom.textContent = `zoom: ${state.zoom.toFixed(1)} px / AU`;
+  let zoomTxt = `zoom: ${state.zoom.toFixed(1)} px / AU`;
+  if (!state.texturesReady && state.texTotal) {
+    zoomTxt += `   ·   loading textures: ${state.texLoaded}/${state.texTotal}`;
+  } else if (state.texFailed) {
+    zoomTxt += `   ·   ${state.texFailed} texture(s) failed to load`;
+  }
+  hudZoom.textContent = zoomTxt;
 }
 
 function formatSpeed(dps) {
