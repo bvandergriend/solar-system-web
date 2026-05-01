@@ -155,6 +155,7 @@ function project(p) {
 const ALL_BODIES = [...PLANETS, ...DWARFS, ...COMETS];
 
 function bodyById(id) {
+  if (id === "Sun") return SUN;
   for (const b of ALL_BODIES) if (b.id === id) return b;
   for (const parent in MOONS)
     for (const m of MOONS[parent])
@@ -164,6 +165,7 @@ function bodyById(id) {
 
 // Compute current position of any body (planet, dwarf, comet, moon).
 function bodyPos(body, days) {
+  if (body.id === "Sun") return { x: 0, y: 0, z: 0 };
   if (body.parent) {
     const parentBody = bodyById(body.parent);
     return moonPosition(bodyPos(parentBody, days), body, days);
@@ -615,12 +617,14 @@ function drawMoons(parentBody, parentPos, days) {
   if (!state.showMoons) return;
   const moons = MOONS[parentBody.id];
   if (!moons) return;
-  // Threshold: only draw moons when the parent's largest moon orbit
-  // would project to more than ~6 px on screen.
-  const biggest = Math.max(...moons.map(m => m.orbitR_km / AU_KM));
-  if (biggest * state.zoom < 4) return;
+  const planetR = displayRadius(parentBody);
+  // Pre-compute per-moon orbit radius in screen px and bail early if
+  // none of them would be visible outside the planet's body.
+  const visible = moons.filter(m =>
+    (m.orbitR_km / AU_KM) * state.zoom > planetR + 3);
+  if (visible.length === 0) return;
 
-  for (const m of moons) {
+  for (const m of visible) {
     const p  = moonPosition(parentPos, m, days);
     const sp = project(p);
     if (sp.sx < -20 || sp.sx > W + 20 || sp.sy < -20 || sp.sy > H + 20) continue;
@@ -808,18 +812,26 @@ function frame(t) {
 // ── Hit-testing ────────────────────────────────────────────────────────
 function bodyAt(x, y, days) {
   const all = [];
+  // Sun
+  const ss = project({ x: 0, y: 0, z: 0 });
+  const sunPx = Math.max(10, (SUN_DIAMETER_KM / 2) / AU_KM * state.zoom);
+  all.push({ id: "Sun", sx: ss.sx, sy: ss.sy, r: sunPx });
+
   for (const b of ALL_BODIES) {
     const p = heliocentric(b.elements, days);
     const s = project(p);
-    all.push({ id: b.id, body: b, sx: s.sx, sy: s.sy, r: b.radius });
+    all.push({ id: b.id, sx: s.sx, sy: s.sy, r: displayRadius(b) });
     if (state.showMoons && MOONS[b.id]) {
+      const planetR = displayRadius(b);
       for (const m of MOONS[b.id]) {
+        const orbitR = (m.orbitR_km / AU_KM) * state.zoom;
+        if (orbitR < planetR + 3) continue;
         const mp = moonPosition(p, m, days);
         const ms = project(mp);
-        const orbitR = (m.orbitR_km / AU_KM) * state.zoom;
-        if (orbitR < 4) continue;
-        all.push({ id: m.id, body: Object.assign({ parent: b.id }, m),
-                   sx: ms.sx, sy: ms.sy, r: m.radius });
+        const km = (m.facts && m.facts.diameter) || 0;
+        const realR = km ? (km / 2) / AU_KM * state.zoom : 0;
+        all.push({ id: m.id, sx: ms.sx, sy: ms.sy,
+                   r: Math.max(m.radius, realR) });
       }
     }
   }
@@ -878,7 +890,8 @@ window.addEventListener("mouseup", e => {
   if (state.drag && !state.drag.moved) {
     const { x, y } = getXY(e);
     const id = bodyAt(x, y, daysSinceJ2000(state.date));
-    select(id);
+    if (id)  jumpToBody(id);          // click body: zoom + track + info
+    else     select(null);            // click empty: just close info
   }
   state.drag = null;
 });
@@ -952,6 +965,7 @@ const infoTrackBtn = document.getElementById("info-track");
 document.getElementById("info-close").addEventListener("click", () => {
   state.selected = null;
   infoEl.classList.add("hidden");
+  refreshBodyMenuSelection();
 });
 
 infoTrackBtn.addEventListener("click", () => {
@@ -965,9 +979,14 @@ infoTrackBtn.addEventListener("click", () => {
 
 function select(id) {
   state.selected = id;
-  if (!id) { infoEl.classList.add("hidden"); return; }
+  if (!id) {
+    infoEl.classList.add("hidden");
+    refreshBodyMenuSelection();
+    return;
+  }
   refreshInfoPanel();
   infoEl.classList.remove("hidden");
+  refreshBodyMenuSelection();
 }
 
 function refreshInfoPanel() {
@@ -1034,17 +1053,55 @@ function refreshInfoPanel() {
   infoFact.textContent = f.fact || "";
 }
 
-// ── Toggles ────────────────────────────────────────────────────────────
-function bindToggle(id, key) {
-  const el = document.getElementById(id);
-  el.addEventListener("change", () => { state[key] = el.checked; });
+// ── Body-tour menu (replaces the old visibility toggles) ───────────────
+// Per-body preferred zoom. Picked so that for any body with moons the
+// outermost reasonable moon orbit is comfortably on-screen, and bodies
+// without moons appear at a size where the texture is clearly visible.
+const PREFERRED_ZOOMS = {
+  Sun:     30,        // wide system view, inner planets in context
+  Mercury: 5e5,       // close-up, surface detail
+  Venus:   2.5e5,
+  Earth:   3e4,       // shows Moon comfortably
+  Mars:    5e5,       // close-up; Phobos/Deimos still tight
+  Jupiter: 1e4,       // shows Galileans + Amalthea
+  Saturn:  1e4,       // shows Titan and outer moons (Iapetus visible)
+  Uranus:  2e4,       // shows the five major moons
+  Neptune: 2e4,       // shows Triton + Proteus
+  Pluto:   5e5,       // close-up; Charon nearby
+  Halley:  18,        // wide enough for the eccentric orbit
+};
+// Bodies for which we don't want to lock the camera onto the body
+// itself (Sun is always at origin; Halley flies around so fast that
+// tracking it makes the whole orbit unwatchable).
+const NO_TRACK = new Set(["Sun", "Halley"]);
+
+function jumpToBody(id) {
+  if (!id) return;
+  const body = bodyById(id);
+  if (!body) return;
+  const z = PREFERRED_ZOOMS[id];
+  if (z) state.zoom = z;
+  if (NO_TRACK.has(id)) {
+    state.tracking = null;
+    state.center = { x: 0, y: 0, z: 0 };
+  } else {
+    state.tracking = id;
+    // center is updated automatically each frame while tracking.
+  }
+  select(id);                        // open info panel as if clicked
+  state.lastT = null;                // resume time integration cleanly
+  refreshBodyMenuSelection();
 }
-bindToggle("t-orbits", "showOrbits");
-bindToggle("t-trails", "showTrails");
-bindToggle("t-labels", "showLabels");
-bindToggle("t-belts",  "showBelts");
-bindToggle("t-zodiac", "showZodiac");
-bindToggle("t-moons",  "showMoons");
+
+function refreshBodyMenuSelection() {
+  document.querySelectorAll("#bodies button").forEach(b => {
+    b.classList.toggle("selected", b.dataset.body === state.selected);
+  });
+}
+
+document.querySelectorAll("#bodies button").forEach(btn => {
+  btn.addEventListener("click", () => jumpToBody(btn.dataset.body));
+});
 
 // ── Time UI ────────────────────────────────────────────────────────────
 const datePicker = document.getElementById("date-picker");

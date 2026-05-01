@@ -16,14 +16,20 @@
     <div id="hud-zoom"></div>
   </div>
 
-  <!-- Top-right toggles -->
-  <div id="toggles">
-    <label><input type="checkbox" id="t-orbits" checked>Orbits</label>
-    <label><input type="checkbox" id="t-trails" checked>Trails</label>
-    <label><input type="checkbox" id="t-labels" checked>Labels</label>
-    <label><input type="checkbox" id="t-belts"  checked>Belts</label>
-    <label><input type="checkbox" id="t-zodiac">Zodiac</label>
-    <label><input type="checkbox" id="t-moons"  checked>Moons</label>
+  <!-- Top-right tour menu — click any body to zoom to it -->
+  <div id="bodies">
+    <h3>Visit a body</h3>
+    <button data-body="Sun">     <span class="g">☉</span> The Sun                 </button>
+    <button data-body="Mercury"> <span class="g">☿</span> Mercury                 </button>
+    <button data-body="Venus">   <span class="g">♀</span> Venus                   </button>
+    <button data-body="Earth">   <span class="g">♁</span> Earth     <em>· Moon</em></button>
+    <button data-body="Mars">    <span class="g">♂</span> Mars      <em>· 2 moons</em></button>
+    <button data-body="Jupiter"> <span class="g">♃</span> Jupiter   <em>· 5 moons</em></button>
+    <button data-body="Saturn">  <span class="g">♄</span> Saturn    <em>· 7 moons</em></button>
+    <button data-body="Uranus">  <span class="g">♅</span> Uranus    <em>· 5 moons</em></button>
+    <button data-body="Neptune"> <span class="g">♆</span> Neptune   <em>· 3 moons</em></button>
+    <button data-body="Pluto">   <span class="g">♇</span> Pluto     <em>· Charon</em></button>
+    <button data-body="Halley">  <span class="g">☄</span> Halley's Comet          </button>
   </div>
 
   <!-- Side info panel (hidden until a body is selected) -->
