@@ -311,6 +311,17 @@ input[type=range]::-moz-range-thumb {
 #tour-buttons button:hover { background: #3a5494; }
 #tour-end { background: transparent !important; color: #8aa1c4 !important; border-color: transparent !important; }
 
+/* ── Texture credit ─────────────────────────────────────────── */
+#credit {
+  position: fixed;
+  bottom: 6px; right: 10px;
+  font-size: 10px;
+  color: rgba(170, 184, 214, 0.5);
+  pointer-events: auto;
+}
+#credit a { color: rgba(180, 200, 240, 0.8); text-decoration: none; }
+#credit a:hover { text-decoration: underline; }
+
 /* ── First-load hint ────────────────────────────────────────── */
 #help {
   position: fixed;

@@ -286,6 +286,162 @@ function dim(hex, factor) {
   return `rgb(${r},${g},${b})`;
 }
 
+// ── Photorealistic textures (NASA-derived equirectangular maps) ────────
+// Textures © Solar System Scope, CC-BY 4.0 — derived from public-domain
+// NASA imagery (Messenger, Magellan, Viking, MOLA, Cassini, Voyager,
+// Hubble, etc.). Each planet's equirectangular map is sampled into a
+// circular sprite (front hemisphere visible, Lambertian lighting from
+// the upper-right) once per body, then blitted each frame.
+const TEXTURE_FILES = {
+  Sun:     "textures/sun.jpg",
+  Mercury: "textures/mercury.jpg",
+  Venus:   "textures/venus.jpg",
+  Earth:   "textures/earth.jpg",
+  Mars:    "textures/mars.jpg",
+  Jupiter: "textures/jupiter.jpg",
+  Saturn:  "textures/saturn.jpg",
+  Uranus:  "textures/uranus.jpg",
+  Neptune: "textures/neptune.jpg",
+  Pluto:   "textures/moon.jpg",     // close-enough stand-in (rocky greys)
+  Moon:    "textures/moon.jpg",
+};
+const bodyTextures = {};   // id → HTMLImageElement (raw equirectangular)
+const bodySprites  = {};   // id → off-screen <canvas> (rendered sphere)
+
+function loadTextures() {
+  return Promise.all(Object.entries(TEXTURE_FILES).map(([id, src]) =>
+    new Promise(resolve => {
+      const img = new Image();
+      img.onload  = () => { bodyTextures[id] = img; resolve(); };
+      img.onerror = () => resolve();   // missing texture → fallback to colour
+      img.src = src;
+    })
+  ));
+}
+
+// Render an equirectangular texture onto a sphere, viewed from +z, with
+// Lambertian shading. Returns an off-screen canvas with a transparent
+// background outside the disc.
+function renderSphereSprite(texImg, radius) {
+  const OS = 3;                          // oversample for crispness
+  const sz = Math.max(8, Math.floor(radius * 2 * OS));
+  const cv = document.createElement("canvas");
+  cv.width = sz; cv.height = sz;
+  const c2 = cv.getContext("2d");
+
+  // Pull pixel data out of the equirectangular texture.
+  const tw = texImg.naturalWidth, th = texImg.naturalHeight;
+  const tcv = document.createElement("canvas");
+  tcv.width = tw; tcv.height = th;
+  const tcx = tcv.getContext("2d");
+  tcx.drawImage(texImg, 0, 0);
+  const tex = tcx.getImageData(0, 0, tw, th).data;
+
+  const out = c2.createImageData(sz, sz);
+  const od  = out.data;
+
+  // Light direction — fixed, slightly above and to the right, so every
+  // planet picks up the same 3-D shading and looks like a sphere.
+  const Lx = 0.45, Ly = -0.30, Lz = 0.84;   // unit vector
+  const r  = sz / 2;
+
+  for (let py = 0; py < sz; py++) {
+    for (let px = 0; px < sz; px++) {
+      const dx = (px - r + 0.5) / r;
+      const dy = (py - r + 0.5) / r;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= 1) continue;
+      const dz = Math.sqrt(1 - d2);
+
+      // Equirectangular sampling. -dy because canvas y points down,
+      // so dy<0 corresponds to the northern hemisphere of the sphere.
+      const lat = Math.asin(-dy);
+      const lon = Math.atan2(dx, dz);
+      const u = lon / TAU + 0.5;
+      const v = 0.5 - lat / Math.PI;
+      const tx = Math.min(tw - 1, Math.max(0, Math.floor(u * tw)));
+      const ty = Math.min(th - 1, Math.max(0, Math.floor(v * th)));
+      const ti = (ty * tw + tx) * 4;
+
+      // Lambertian + ambient floor so the dark side isn't pitch black.
+      const lam = dx * Lx + dy * Ly + dz * Lz;
+      const lit = 0.18 + 0.82 * Math.max(0, lam);
+
+      // Soft anti-aliased edge: fade alpha in the last ~1px of the disc
+      const edge = (1 - d2) > 0.04 ? 255 : Math.floor((1 - d2) * 255 / 0.04);
+
+      const oi = (py * sz + px) * 4;
+      od[oi    ] = Math.min(255, tex[ti    ] * lit);
+      od[oi + 1] = Math.min(255, tex[ti + 1] * lit);
+      od[oi + 2] = Math.min(255, tex[ti + 2] * lit);
+      od[oi + 3] = edge;
+    }
+  }
+
+  c2.putImageData(out, 0, 0);
+  return cv;
+}
+
+// Render a sun sprite: equirectangular map at full brightness, no
+// Lambertian shading (the Sun is self-luminous).
+function renderSunSprite(texImg, radius) {
+  const OS = 3;
+  const sz = Math.max(8, Math.floor(radius * 2 * OS));
+  const cv = document.createElement("canvas");
+  cv.width = sz; cv.height = sz;
+  const c2 = cv.getContext("2d");
+
+  const tw = texImg.naturalWidth, th = texImg.naturalHeight;
+  const tcv = document.createElement("canvas");
+  tcv.width = tw; tcv.height = th;
+  tcv.getContext("2d").drawImage(texImg, 0, 0);
+  const tex = tcv.getContext("2d").getImageData(0, 0, tw, th).data;
+
+  const out = c2.createImageData(sz, sz);
+  const od  = out.data;
+  const r = sz / 2;
+  for (let py = 0; py < sz; py++) {
+    for (let px = 0; px < sz; px++) {
+      const dx = (px - r + 0.5) / r;
+      const dy = (py - r + 0.5) / r;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= 1) continue;
+      const dz = Math.sqrt(1 - d2);
+      const lat = Math.asin(-dy);
+      const lon = Math.atan2(dx, dz);
+      const u = lon / TAU + 0.5, v = 0.5 - lat / Math.PI;
+      const tx = Math.min(tw-1, Math.floor(u * tw));
+      const ty = Math.min(th-1, Math.floor(v * th));
+      const ti = (ty * tw + tx) * 4;
+      // Slight limb darkening (very subtle) to give it 3-D feel
+      const lim = 0.85 + 0.15 * dz;
+      const edge = (1 - d2) > 0.04 ? 255 : Math.floor((1 - d2) * 255 / 0.04);
+      const oi = (py * sz + px) * 4;
+      od[oi    ] = Math.min(255, tex[ti    ] * lim);
+      od[oi + 1] = Math.min(255, tex[ti + 1] * lim);
+      od[oi + 2] = Math.min(255, tex[ti + 2] * lim);
+      od[oi + 3] = edge;
+    }
+  }
+  c2.putImageData(out, 0, 0);
+  return cv;
+}
+
+function buildAllSprites() {
+  // Planets / dwarfs / comet
+  for (const b of ALL_BODIES) {
+    const tex = bodyTextures[b.id];
+    if (tex) bodySprites[b.id] = renderSphereSprite(tex, b.radius);
+  }
+  // Earth's Moon (only moon we have a real texture for)
+  if (bodyTextures.Moon && MOONS.Earth) {
+    const moon = MOONS.Earth.find(m => m.id === "Moon");
+    if (moon) bodySprites.Moon = renderSphereSprite(bodyTextures.Moon, moon.radius);
+  }
+  // Sun — special render (no Lambertian)
+  if (bodyTextures.Sun) bodySprites.Sun = renderSunSprite(bodyTextures.Sun, 12);
+}
+
 // ── The Sun ────────────────────────────────────────────────────────────
 function drawSun() {
   const s = project({ x: 0, y: 0, z: 0 });
@@ -300,10 +456,18 @@ function drawSun() {
   ctx.arc(s.sx, s.sy, 60, 0, TAU);
   ctx.fill();
 
-  ctx.fillStyle = "#ffeebb";
-  ctx.beginPath();
-  ctx.arc(s.sx, s.sy, 8, 0, TAU);
-  ctx.fill();
+  // Photosphere — if the texture is loaded, blit the rendered sun
+  // sprite (with subtle limb darkening); otherwise fall back to a flat
+  // disc. The corona above is what dominates visually anyway.
+  const sprite = bodySprites.Sun;
+  if (sprite) {
+    ctx.drawImage(sprite, s.sx - 12, s.sy - 12, 24, 24);
+  } else {
+    ctx.fillStyle = "#ffeebb";
+    ctx.beginPath();
+    ctx.arc(s.sx, s.sy, 8, 0, TAU);
+    ctx.fill();
+  }
 
   if (state.showLabels) {
     ctx.fillStyle = "#ffeebb";
@@ -362,20 +526,28 @@ function drawBody(body, pos) {
     drawCometTail(pos, s);
   }
 
-  // Glow + body
-  const grad = ctx.createRadialGradient(s.sx, s.sy, 0, s.sx, s.sy, body.radius * 2);
-  grad.addColorStop(0,   body.color);
-  grad.addColorStop(0.5, withAlpha(body.color, 0.4));
-  grad.addColorStop(1,   withAlpha(body.color, 0));
+  // Subtle glow halo (colour-tinted) around every body, drawn first.
+  const grad = ctx.createRadialGradient(s.sx, s.sy, body.radius * 0.9,
+                                        s.sx, s.sy, body.radius * 2);
+  grad.addColorStop(0, withAlpha(body.color, 0.35));
+  grad.addColorStop(1, withAlpha(body.color, 0));
   ctx.fillStyle = grad;
   ctx.beginPath();
   ctx.arc(s.sx, s.sy, body.radius * 2, 0, TAU);
   ctx.fill();
 
-  ctx.fillStyle = body.color;
-  ctx.beginPath();
-  ctx.arc(s.sx, s.sy, body.radius, 0, TAU);
-  ctx.fill();
+  // Body itself: textured sphere sprite if the image is loaded,
+  // otherwise the original flat-coloured disc as a fallback.
+  const sprite = bodySprites[body.id];
+  if (sprite) {
+    ctx.drawImage(sprite, s.sx - body.radius, s.sy - body.radius,
+                          body.radius * 2,    body.radius * 2);
+  } else {
+    ctx.fillStyle = body.color;
+    ctx.beginPath();
+    ctx.arc(s.sx, s.sy, body.radius, 0, TAU);
+    ctx.fill();
+  }
 
   if (state.selected === body.id || state.tracking === body.id) {
     ctx.strokeStyle = state.tracking === body.id ? "#ff9a40" : "#79c0ff";
@@ -452,10 +624,16 @@ function drawMoons(parentBody, parentPos, days) {
       ctx.stroke();
     }
 
-    ctx.fillStyle = m.color;
-    ctx.beginPath();
-    ctx.arc(sp.sx, sp.sy, m.radius, 0, TAU);
-    ctx.fill();
+    const moonSprite = bodySprites[m.id];
+    if (moonSprite) {
+      ctx.drawImage(moonSprite, sp.sx - m.radius, sp.sy - m.radius,
+                                m.radius * 2,     m.radius * 2);
+    } else {
+      ctx.fillStyle = m.color;
+      ctx.beginPath();
+      ctx.arc(sp.sx, sp.sy, m.radius, 0, TAU);
+      ctx.fill();
+    }
 
     if (state.selected === m.id || state.tracking === m.id) {
       ctx.strokeStyle = state.tracking === m.id ? "#ff9a40" : "#79c0ff";
@@ -1004,3 +1182,9 @@ btnTourEnd.addEventListener("click", () => tourEl.classList.add("hidden"));
 setTimeout(() => document.getElementById("help").classList.add("fade"), 8000);
 
 requestAnimationFrame(frame);
+
+// Kick off texture loading — when the images arrive we generate their
+// sphere sprites, and drawSun/drawBody pick them up automatically on
+// the next frame. The animation loop runs immediately in fallback
+// (flat-colour) mode so the page is usable while textures download.
+loadTextures().then(buildAllSprites);
