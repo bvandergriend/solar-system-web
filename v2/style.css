@@ -84,6 +84,21 @@ html, body {
   border-color: rgba(255, 154, 64, 0.55);
   color: #ffffff;
 }
+/* Easter-egg flash when the saucer first appears in the menu */
+#bodies button.flash {
+  animation: visitor-flash 0.6s ease-in-out 4;
+}
+@keyframes visitor-flash {
+  0%, 100% {
+    background: rgba(155, 190, 216, 0.10);
+    border-color: rgba(110, 160, 220, 0.20);
+  }
+  50% {
+    background: rgba(155, 190, 216, 0.55);
+    border-color: rgba(190, 230, 255, 0.95);
+    box-shadow: 0 0 16px rgba(120, 200, 255, 0.6);
+  }
+}
 #bodies .g {
   width: 18px;
   text-align: center;

@@ -22,6 +22,25 @@ const G_EARTH_GRAV = 9.81;       // m/s² for "weight on …" calc
 const SECONDS_PER_DAY = 86400;
 const DAYS_PER_YEAR = 365.25;
 
+// ── Easter egg: the Roswell Visitor 🛸 ──────────────────────────────────
+// Spawns when the simulation date is inside this window. The Roswell
+// Daily Record headline ran on July 8, 1947: "RAAF Captures Flying
+// Saucer On Ranch in Roswell Region". The saucer sticks around for
+// roughly six simulated months, then quietly disappears.
+const ROSWELL_START_MS = Date.UTC(1947, 6,  8);   // July is month 6 (0-indexed)
+const ROSWELL_END_MS   = Date.UTC(1948, 0,  1);
+
+const VISITOR = {
+  id: "Visitor", color: "#cdd8e8", radius: 4,
+  facts: {
+    type: "Unidentified aerial phenomenon",
+    diameter: 0.007,        // ~7 m, displayed specially
+    moons: 0,
+    crew: "5 little green men (rumoured)",
+    fact: "On July 8, 1947 the Roswell Daily Record reported that the Roswell Army Air Field had captured a 'flying disc'. Within 24 hours the official explanation was revised to 'weather balloon'. Take that as you will.",
+  },
+};
+
 // ── The Sun (at the origin — no orbit) ─────────────────────────────────
 const SUN = {
   id: "Sun", color: "#ffeebb", radius: 10,

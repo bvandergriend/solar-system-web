@@ -156,6 +156,7 @@ const ALL_BODIES = [...PLANETS, ...DWARFS, ...COMETS];
 
 function bodyById(id) {
   if (id === "Sun") return SUN;
+  if (id === "Visitor") return VISITOR;
   for (const b of ALL_BODIES) if (b.id === id) return b;
   for (const parent in MOONS)
     for (const m of MOONS[parent])
@@ -166,11 +167,35 @@ function bodyById(id) {
 // Compute current position of any body (planet, dwarf, comet, moon).
 function bodyPos(body, days) {
   if (body.id === "Sun") return { x: 0, y: 0, z: 0 };
+  if (body.id === "Visitor") return visitorPosition(days);
   if (body.parent) {
     const parentBody = bodyById(body.parent);
     return moonPosition(bodyPos(parentBody, days), body, days);
   }
   return heliocentric(body.elements, days);
+}
+
+// ── Easter egg helpers ─────────────────────────────────────────────────
+function visitorActive() {
+  const t = state.date.getTime();
+  return t >= ROSWELL_START_MS && t < ROSWELL_END_MS;
+}
+
+// Heliocentric position of the saucer: it orbits Earth on a deliberately
+// weird, fast, retrograde, slightly-tilted-and-eccentric path that
+// visually doesn't match anything else in the scene.
+function visitorPosition(days) {
+  const dt = (state.date.getTime() - ROSWELL_START_MS) / 86400000;
+  const earth = heliocentric(bodyById("Earth").elements, days);
+  const angle = -dt * (TAU / 8.0);                    // 8-day retrograde period
+  const r_km = 480000 + 80000 * Math.sin(dt * 0.27);  // wobbly altitude
+  const r    = r_km / AU_KM;
+  const tilt = 0.45;                                   // ~26° off ecliptic
+  return {
+    x: earth.x + r * Math.cos(angle),
+    y: earth.y + r * Math.sin(angle) * Math.cos(tilt),
+    z: earth.z + r * Math.sin(angle) * Math.sin(tilt),
+  };
 }
 
 // ── Drawing ────────────────────────────────────────────────────────────
@@ -612,6 +637,67 @@ function drawCometTail(pos, screenPos) {
   }
 }
 
+// ── Easter-egg renderer: the Roswell Visitor 🛸 ────────────────────────
+function drawVisitor(days) {
+  const pos = visitorPosition(days);
+  const s   = project(pos);
+  if (s.sx < -50 || s.sx > W + 50 || s.sy < -50 || s.sy > H + 50) return;
+
+  // Body radius scales gently with zoom so the saucer is recognisable
+  // when the user zooms into the Earth-Moon system to find it, but
+  // doesn't dominate at wide views.
+  const r = Math.max(4, Math.min(18, state.zoom / 4000));
+
+  // Saucer dish (flattened ellipse)
+  ctx.fillStyle   = "#dde4ec";
+  ctx.strokeStyle = "#5a6878";
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.ellipse(s.sx, s.sy, r * 1.6, r * 0.45, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+
+  // Translucent dome on top
+  const g = ctx.createLinearGradient(s.sx, s.sy - r, s.sx, s.sy);
+  g.addColorStop(0, "rgba(180, 220, 255, 0.95)");
+  g.addColorStop(1, "rgba(120, 170, 220, 0.55)");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(s.sx, s.sy - r * 0.18, r * 0.7, r * 0.55, 0, Math.PI, 0, false);
+  ctx.fill();
+
+  // Three blinking lights underneath, RGB
+  const t = performance.now() * 0.005;
+  const lights = [["#ff4040", 0], ["#40ff60", 1.0], ["#5080ff", 2.0]];
+  for (let i = 0; i < 3; i++) {
+    const lx = s.sx + (i - 1) * r * 0.7;
+    const ly = s.sy + r * 0.45;
+    const blink = (Math.sin(t + lights[i][1]) + 1) * 0.5;
+    ctx.globalAlpha = 0.45 + blink * 0.55;
+    ctx.fillStyle   = lights[i][0];
+    ctx.beginPath();
+    ctx.arc(lx, ly, Math.max(1, r * 0.18), 0, TAU);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Selection / track ring
+  if (state.selected === "Visitor" || state.tracking === "Visitor") {
+    ctx.strokeStyle = state.tracking === "Visitor" ? "#ff9a40" : "#79c0ff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(s.sx, s.sy, r * 2.2, 0, TAU);
+    ctx.stroke();
+  }
+
+  if (state.showLabels) {
+    ctx.fillStyle = state.hovered === "Visitor" ? "#ffffff" : "#9bbed8";
+    ctx.font = "bold 10px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("🛸 Visitor", s.sx, s.sy + r * 1.6 + 8);
+  }
+}
+
 // ── Moons (drawn relative to their planet, only when zoomed enough) ────
 function drawMoons(parentBody, parentPos, days) {
   if (!state.showMoons) return;
@@ -803,6 +889,16 @@ function frame(t) {
     drawMoons(b, pos, days);
   }
 
+  // Easter-egg saucer: visible only during the Roswell window.
+  if (visitorActive()) {
+    pushTrail("Visitor", visitorPosition(days));
+    drawTrail("Visitor", "#9bbed8");
+    drawVisitor(days);
+  } else if (state.trails.has("Visitor")) {
+    state.trails.delete("Visitor");
+  }
+  syncVisitorMenu();
+
   drawScaleBar();
   updateHUD();
 
@@ -816,6 +912,12 @@ function bodyAt(x, y, days) {
   const ss = project({ x: 0, y: 0, z: 0 });
   const sunPx = Math.max(10, (SUN_DIAMETER_KM / 2) / AU_KM * state.zoom);
   all.push({ id: "Sun", sx: ss.sx, sy: ss.sy, r: sunPx });
+  // Easter-egg visitor (only when active)
+  if (visitorActive()) {
+    const vp = visitorPosition(days);
+    const vs = project(vp);
+    all.push({ id: "Visitor", sx: vs.sx, sy: vs.sy, r: 10 });
+  }
 
   for (const b of ALL_BODIES) {
     const p = heliocentric(b.elements, days);
@@ -991,6 +1093,7 @@ function select(id) {
 
 function refreshInfoPanel() {
   if (!state.selected) return;
+  if (state.selected === "Visitor") { refreshVisitorPanel(); return; }
   const body = bodyById(state.selected);
   if (!body) return;
   infoName.textContent = body.id;
@@ -1053,6 +1156,31 @@ function refreshInfoPanel() {
   infoFact.textContent = f.fact || "";
 }
 
+// Custom info panel for the Roswell saucer easter egg
+function refreshVisitorPanel() {
+  infoName.textContent = "🛸 Visitor (?)";
+  infoType.textContent = VISITOR.facts.type;
+  infoTrackBtn.textContent = state.tracking === "Visitor"
+                             ? "Stop tracking" : "Track this body";
+  infoTrackBtn.classList.toggle("tracking", state.tracking === "Visitor");
+
+  const days  = daysSinceJ2000(state.date);
+  const pos   = visitorPosition(days);
+  const earth = heliocentric(bodyById("Earth").elements, days);
+  const dAU   = Math.hypot(pos.x - earth.x, pos.y - earth.y, pos.z - earth.z);
+  const ltSec = (dAU * AU_KM) / C_KMS;
+
+  infoTable.innerHTML = `
+    <tr><td>First observed</td><td>July 8, 1947<br>Roswell, NM</td></tr>
+    <tr><td>Diameter</td>      <td>~7 m (alleged)</td></tr>
+    <tr><td>Crew</td>          <td>${VISITOR.facts.crew}</td></tr>
+    <tr><td>Distance from Earth</td><td>${dAU.toFixed(5)} AU</td></tr>
+    <tr><td>Light delay</td>   <td>${(ltSec * 1000).toFixed(1)} ms</td></tr>
+    <tr><td>Status</td>        <td>"Weather balloon"</td></tr>
+  `;
+  infoFact.textContent = VISITOR.facts.fact;
+}
+
 // ── Body-tour menu (replaces the old visibility toggles) ───────────────
 // Per-body preferred zoom. Picked so that for any body with moons the
 // outermost reasonable moon orbit is comfortably on-screen, and bodies
@@ -1069,6 +1197,7 @@ const PREFERRED_ZOOMS = {
   Neptune: 2e4,       // shows Triton + Proteus
   Pluto:   5e5,       // close-up; Charon nearby
   Halley:  18,        // wide enough for the eccentric orbit
+  Visitor: 3e4,       // Earth-Moon system view shows the saucer + Moon
 };
 // Bodies for which we don't want to lock the camera onto the body
 // itself (Sun is always at origin; Halley flies around so fast that
@@ -1102,6 +1231,29 @@ function refreshBodyMenuSelection() {
 document.querySelectorAll("#bodies button").forEach(btn => {
   btn.addEventListener("click", () => jumpToBody(btn.dataset.body));
 });
+
+// ── Visitor menu sync ──────────────────────────────────────────────────
+// Show / hide the easter-egg menu entry as the simulation date crosses
+// the Roswell window. Flash it briefly when it first appears so the
+// user notices something new turned up. Also auto-clean up info-panel
+// state and tracking when the window closes.
+let _visitorWasActive = false;
+function syncVisitorMenu() {
+  const btn = document.getElementById("visitor-btn");
+  if (!btn) return;
+  const active = visitorActive();
+  if (active === _visitorWasActive) return;
+  if (active) {
+    btn.style.display = "";
+    btn.classList.add("flash");
+    setTimeout(() => btn.classList.remove("flash"), 2400);
+  } else {
+    btn.style.display = "none";
+    if (state.selected === "Visitor") select(null);
+    if (state.tracking === "Visitor") state.tracking = null;
+  }
+  _visitorWasActive = active;
+}
 
 // ── Time UI ────────────────────────────────────────────────────────────
 const datePicker = document.getElementById("date-picker");
