@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Solar System Explorer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="sky"></canvas>
+
+  <!-- Top-left heads-up display -->
+  <div id="hud">
+    <div id="hud-date"></div>
+    <div id="hud-meta"></div>
+    <div id="hud-zoom"></div>
+  </div>
+
+  <!-- Top-right toggles -->
+  <div id="toggles">
+    <label><input type="checkbox" id="t-orbits" checked>Orbits</label>
+    <label><input type="checkbox" id="t-trails" checked>Trails</label>
+    <label><input type="checkbox" id="t-labels" checked>Labels</label>
+    <label><input type="checkbox" id="t-belts"  checked>Belts</label>
+    <label><input type="checkbox" id="t-zodiac">Zodiac</label>
+    <label><input type="checkbox" id="t-moons"  checked>Moons</label>
+  </div>
+
+  <!-- Side info panel (hidden until a body is selected) -->
+  <aside id="info" class="hidden">
+    <button id="info-close" aria-label="Close">×</button>
+    <h2 id="info-name"></h2>
+    <div id="info-type"></div>
+    <button id="info-track" class="action">Track this body</button>
+    <table id="info-table"></table>
+    <p id="info-fact"></p>
+  </aside>
+
+  <!-- Tour overlay (hidden until started) -->
+  <div id="tour" class="hidden">
+    <div id="tour-step"></div>
+    <div id="tour-buttons">
+      <button id="tour-prev">‹ Back</button>
+      <button id="tour-next">Next ›</button>
+      <button id="tour-end">Exit tour</button>
+    </div>
+  </div>
+
+  <!-- Bottom control bar -->
+  <div id="controls">
+    <div class="ctrl-group">
+      <label>Date</label>
+      <input type="date" id="date-picker">
+      <button id="now-btn" class="btn">Now</button>
+    </div>
+
+    <div class="ctrl-group flex">
+      <button id="play-btn" class="btn">▶</button>
+      <span id="speed-label">paused</span>
+      <input type="range" id="speed" min="-6" max="6" step="0.1" value="0">
+      <span class="hint">⟵ slower · faster ⟶</span>
+    </div>
+
+    <div class="ctrl-group">
+      <label>Jump to</label>
+      <select id="events">
+        <option value="">— Famous events —</option>
+      </select>
+    </div>
+
+    <div class="ctrl-group">
+      <button id="reset-view" class="btn">Reset view</button>
+      <button id="tour-start" class="btn primary">Take the tour</button>
+    </div>
+  </div>
+
+  <!-- Help overlay (first-time tip) -->
+  <div id="help">
+    <div>Drag&nbsp;·&nbsp;rotate&nbsp;&nbsp;|&nbsp;&nbsp;Scroll&nbsp;·&nbsp;zoom&nbsp;&nbsp;|&nbsp;&nbsp;Shift+drag&nbsp;·&nbsp;pan&nbsp;&nbsp;|&nbsp;&nbsp;Click a body for info</div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
