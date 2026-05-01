@@ -54,11 +54,14 @@
       <button id="now-btn" class="btn">Now</button>
     </div>
 
-    <div class="ctrl-group flex">
-      <button id="play-btn" class="btn">▶</button>
-      <span id="speed-label">paused</span>
-      <input type="range" id="speed" min="-6" max="6" step="0.1" value="0">
-      <span class="hint">⟵ slower · faster ⟶</span>
+    <div class="ctrl-group time-ctrl">
+      <div class="time-axis">
+        <span class="dir backward">◀ REWIND</span>
+        <span class="dir centre">⏸ PAUSED</span>
+        <span class="dir forward">FAST FORWARD ▶</span>
+      </div>
+      <input type="range" id="speed" min="-6" max="6" step="0.05" value="0">
+      <div class="speed-readout"><span id="speed-label">paused</span></div>
     </div>
 
     <div class="ctrl-group">

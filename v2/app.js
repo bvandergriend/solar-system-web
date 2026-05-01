@@ -527,7 +527,7 @@ function updateHUD() {
   let speedStr;
   if (!state.playing) speedStr = "paused";
   else {
-    const dps = Math.pow(10, state.speed) * Math.sign(state.speed || 1);
+    const dps = Math.pow(10, state.speed) * state.speedSign;
     speedStr = formatSpeed(dps);
   }
   hudMeta.textContent =
@@ -851,8 +851,13 @@ bindToggle("t-moons",  "showMoons");
 const datePicker = document.getElementById("date-picker");
 const speedEl    = document.getElementById("speed");
 const speedLbl   = document.getElementById("speed-label");
-const playBtn    = document.getElementById("play-btn");
 const eventsEl   = document.getElementById("events");
+
+// A small dead-band at slider centre so it's easy to land on "paused"
+// without micrometer precision. Outside this band the speed grows
+// logarithmically: at the band edge it's 1 day/sec, at full deflection
+// (±6) it's about 10⁵·⁸ days/sec ≈ 1700 yr/sec.
+const SPEED_DEADBAND = 0.2;
 
 function syncDatePicker() {
   const d = state.date;
@@ -877,22 +882,42 @@ document.getElementById("now-btn").addEventListener("click", () => {
 
 state.speedSign = 1;
 function updateSpeedLabel() {
-  if (!state.playing) { speedLbl.textContent = "paused"; return; }
+  if (!state.playing) {
+    speedLbl.textContent = "paused";
+    speedLbl.classList.add("paused");
+    return;
+  }
   const dps = Math.pow(10, state.speed) * state.speedSign;
   speedLbl.textContent = formatSpeed(dps);
+  speedLbl.classList.remove("paused");
 }
-speedEl.addEventListener("input", () => {
-  const v = parseFloat(speedEl.value);
-  state.speed = Math.abs(v);
-  state.speedSign = v < 0 ? -1 : 1;
+function applySpeedSlider(v) {
+  if (Math.abs(v) < SPEED_DEADBAND) {
+    state.playing = false;
+    state.speed   = 0;
+  } else {
+    const mag = Math.abs(v) - SPEED_DEADBAND;
+    state.speed     = mag;
+    state.speedSign = v < 0 ? -1 : 1;
+    if (!state.playing) state.lastT = null;  // reset clock on resume
+    state.playing   = true;
+  }
   updateSpeedLabel();
-});
-playBtn.addEventListener("click", () => {
-  state.playing = !state.playing;
-  playBtn.textContent = state.playing ? "❚❚" : "▶";
-  updateSpeedLabel();
-  state.lastT = null;
-});
+}
+speedEl.addEventListener("input", () => applySpeedSlider(parseFloat(speedEl.value)));
+// Snap to exact zero when the user releases the thumb inside the dead-
+// band: makes "park at paused" feel detent-like without affecting the
+// continuous response while dragging.
+function snapToCentre() {
+  if (Math.abs(parseFloat(speedEl.value)) < SPEED_DEADBAND) {
+    speedEl.value = 0;
+    applySpeedSlider(0);
+  }
+}
+speedEl.addEventListener("change",     snapToCentre);
+speedEl.addEventListener("mouseup",    snapToCentre);
+speedEl.addEventListener("touchend",   snapToCentre);
+speedEl.addEventListener("keyup",      snapToCentre);
 
 // Build events dropdown
 for (const ev of EVENTS) {
