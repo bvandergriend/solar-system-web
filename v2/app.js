@@ -1174,6 +1174,10 @@ speedEl.addEventListener("change",     snapToCentre);
 speedEl.addEventListener("mouseup",    snapToCentre);
 speedEl.addEventListener("touchend",   snapToCentre);
 speedEl.addEventListener("keyup",      snapToCentre);
+// Apply whatever default value the slider was initialised with so the
+// simulation actually runs from the start (HTML default = 0.2, just
+// past the dead-band, which works out to exactly 1 day/sec forward).
+applySpeedSlider(parseFloat(speedEl.value));
 
 // Build events dropdown
 for (const ev of EVENTS) {
