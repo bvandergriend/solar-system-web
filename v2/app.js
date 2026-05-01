@@ -1213,6 +1213,10 @@ function jumpToBody(id) {
   if (NO_TRACK.has(id)) {
     state.tracking = null;
     state.center = { x: 0, y: 0, z: 0 };
+  } else if (id === "Visitor") {
+    // Saucer orbits Earth — track Earth so the saucer is visibly
+    // looping around the planet rather than us riding along with it.
+    state.tracking = "Earth";
   } else {
     state.tracking = id;
     // center is updated automatically each frame while tracking.
@@ -1247,12 +1251,31 @@ function syncVisitorMenu() {
     btn.style.display = "";
     btn.classList.add("flash");
     setTimeout(() => btn.classList.remove("flash"), 2400);
+    showToast("🛸 ANOMALY DETECTED &middot; near-Earth orbit");
+    // Auto-jump to the saucer the first time it appears, so the user
+    // immediately sees something happen instead of having to find a
+    // sub-pixel speck on the canvas. They can hit "Reset view" to leave.
+    jumpToBody("Visitor");
   } else {
     btn.style.display = "none";
     if (state.selected === "Visitor") select(null);
     if (state.tracking === "Visitor") state.tracking = null;
   }
   _visitorWasActive = active;
+}
+
+function showToast(html) {
+  let t = document.getElementById("toast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "toast";
+    document.body.appendChild(t);
+  }
+  t.innerHTML = html;
+  t.classList.remove("show");
+  // Force reflow so the animation restarts even if shown twice quickly
+  void t.offsetWidth;
+  t.classList.add("show");
 }
 
 // ── Time UI ────────────────────────────────────────────────────────────
