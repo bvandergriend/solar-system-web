@@ -303,6 +303,7 @@ const ZODIAC = [
 
 // ── Famous events — date strings parsed at lookup time ─────────────────
 const EVENTS = [
+  { date: "1947-07-08T20:00:00Z", label: "Roswell flying disc press release 🛸" },
   { date: "1969-07-20T20:17:00Z", label: "Apollo 11 lunar landing" },
   { date: "1977-09-05T12:56:00Z", label: "Voyager 1 launches toward outer planets" },
   { date: "1979-03-05T00:00:00Z", label: "Voyager 1 reaches Jupiter" },

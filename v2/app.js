@@ -1291,6 +1291,8 @@ const eventsEl   = document.getElementById("events");
 const SPEED_DEADBAND = 0.2;
 
 function syncDatePicker() {
+  // Don't clobber the value while the user is typing.
+  if (document.activeElement === datePicker) return;
   const d = state.date;
   const yyyy = d.getUTCFullYear().toString().padStart(4, "0");
   const mm = (d.getUTCMonth() + 1).toString().padStart(2, "0");
@@ -1298,13 +1300,33 @@ function syncDatePicker() {
   datePicker.value = `${yyyy}-${mm}-${dd}`;
 }
 syncDatePicker();
-setInterval(syncDatePicker, 500);  // keep in sync as the simulation runs
+setInterval(syncDatePicker, 500);
 
-datePicker.addEventListener("change", () => {
-  if (datePicker.value) {
-    state.date = new Date(datePicker.value + "T12:00:00Z");
-    clearTrails();
+// Accept any YYYY-MM-DD (or YYYY-M-D). Apply on Enter or blur. Pulse
+// the field red briefly if the input doesn't parse, so the user knows
+// to fix it rather than silently ignoring bad input.
+function applyDateInput() {
+  const v = datePicker.value.trim();
+  const m = v.match(/^(-?\d{1,5})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) { datePicker.classList.add("bad"); setTimeout(() => datePicker.classList.remove("bad"), 700); return; }
+  const yr = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10) - 1;
+  const dy = parseInt(m[3], 10);
+  const d  = new Date(Date.UTC(yr, mo, dy, 12, 0, 0));
+  // Date constructor never throws — verify round-trip to catch nonsense.
+  if (isNaN(d.getTime()) || d.getUTCFullYear() !== yr
+      || d.getUTCMonth() !== mo || d.getUTCDate() !== dy) {
+    datePicker.classList.add("bad");
+    setTimeout(() => datePicker.classList.remove("bad"), 700);
+    return;
   }
+  state.date = d;
+  clearTrails();
+  datePicker.blur();
+}
+datePicker.addEventListener("change", applyDateInput);
+datePicker.addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); applyDateInput(); }
 });
 document.getElementById("now-btn").addEventListener("click", () => {
   state.date = new Date();

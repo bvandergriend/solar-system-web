@@ -59,7 +59,10 @@
   <div id="controls">
     <div class="ctrl-group">
       <label>Date</label>
-      <input type="date" id="date-picker">
+      <input type="text" id="date-picker"
+             placeholder="YYYY-MM-DD" maxlength="10"
+             size="10" autocomplete="off" spellcheck="false"
+             pattern="\d{4}-\d{2}-\d{2}">
       <button id="now-btn" class="btn">Now</button>
     </div>
 

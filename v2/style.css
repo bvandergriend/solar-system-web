@@ -225,14 +225,34 @@ html, body {
 }
 #speed-label.paused { color: #8aa1c4; }
 
-input[type=date], select {
+input[type=date], input[type=text]#date-picker, select {
   background: #14213a;
   color: #d6e0f5;
   border: 1px solid #2c456f;
   border-radius: 4px;
   padding: 5px 8px;
   font-size: 12px;
-  font-family: inherit;
+  font-family: "Courier New", monospace;
+  font-variant-numeric: tabular-nums;
+}
+input[type=text]#date-picker {
+  width: 110px;
+  letter-spacing: 0.04em;
+}
+input[type=text]#date-picker:focus {
+  outline: none;
+  border-color: #6b8de0;
+  background: #1a2c4f;
+}
+input[type=text]#date-picker.bad {
+  animation: input-shake 0.5s ease-in-out;
+  border-color: #d04444;
+  background: #3a1818;
+}
+@keyframes input-shake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-4px); }
+  75%      { transform: translateX(4px); }
 }
 input[type=range] {
   -webkit-appearance: none;
